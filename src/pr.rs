@@ -71,15 +71,17 @@ fn open_cache_db() -> Option<Connection> {
 pub fn repo_slug(origin_url: &str) -> Option<String> {
     let url = origin_url.strip_suffix(".git").unwrap_or(origin_url);
     if let Some(rest) = url.strip_prefix("git@github.com:")
-        && rest.contains('/') {
-            return Some(rest.to_string());
-        }
+        && rest.contains('/')
+    {
+        return Some(rest.to_string());
+    }
     if let Some(rest) = url
         .strip_prefix("https://github.com/")
         .or_else(|| url.strip_prefix("http://github.com/"))
-        && rest.contains('/') {
-            return Some(rest.to_string());
-        }
+        && rest.contains('/')
+    {
+        return Some(rest.to_string());
+    }
     Option::None
 }
 
