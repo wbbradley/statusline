@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0] - 2026-04-12
+
+### Breaking Changes
+
+- Removed total input tokens and session duration segments from line 1
+- Output frame changed from `│ ... │` with space padding to `╭─...─╮` / `╰─...─╯` with `─` separators
+
+### Changed
+
+- Context token count displayed in orange without `ctx:` prefix
+- Segment separators are now horizontal bar characters (`──`) instead of spaces
+- Border color changed to `#978771`
+
+### Removed
+
+- Total input tokens segment from line 1
+- Session duration segment from line 1
+- `GRAY` color constant and `format_duration` helper
+
 ## [0.2.0] - 2026-04-12
 
 ### Breaking Changes
