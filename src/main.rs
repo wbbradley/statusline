@@ -1,3 +1,4 @@
+mod format;
 mod input;
 
 use std::io::Read;
@@ -11,5 +12,5 @@ fn main() {
         eprintln!("statusline: {e}");
         std::process::exit(1);
     });
-    println!("{input:#?}");
+    println!("{}", format::format_line1(&input));
 }

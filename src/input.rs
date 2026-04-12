@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct StatusInput {
     pub cwd: Option<String>,
     pub session_id: Option<String>,
