@@ -4,8 +4,8 @@ A Rust CLI that reads [Claude Code](https://claude.ai/claude-code) session JSON 
 prints a 2-line gruvbox-colored ANSI status bar.
 
 ```
-[Opus]  ~/src/project  ctx: 145k  total: 230k  12m
-⎇ main  +3 ~2  ↑1↓0  PR #42 ✓ approved  ● checks pass
+│ ~/src/project  ctx: 145k  total: 230k  12m                    │
+│ ⎇ main  +3 ~2  ↑1↓0  PR #42 ✓ approved  ● checks pass       │
 ```
 
 ## Install
@@ -19,7 +19,7 @@ cargo install --path .
 Pipe Claude Code's status JSON into `statusline`:
 
 ```bash
-echo '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/tmp/project"}}' | statusline
+echo '{"workspace":{"current_dir":"/tmp/project"}}' | statusline
 ```
 
 Missing or null fields are silently omitted — any valid JSON object works.
@@ -28,7 +28,6 @@ Missing or null fields are silently omitted — any valid JSON object works.
 
 | Segment | Source | Color |
 |---------|--------|-------|
-| Model name | `model.display_name` | blue |
 | Working directory | `workspace.current_dir` (tilde-contracted) | aqua |
 | Context tokens | `context_window.current_usage` (input + cache) | yellow |
 | Total tokens | `context_window.total_input_tokens` | yellow |

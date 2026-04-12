@@ -7,10 +7,40 @@ const GRAY: &str = "\x1b[38;2;168;153;132m";
 const GREEN: &str = "\x1b[38;2;184;187;38m";
 const ORANGE: &str = "\x1b[38;2;254;128;25m";
 const RED: &str = "\x1b[38;2;251;73;52m";
+const BG: &str = "\x1b[48;2;13;12;12m";
 const RESET: &str = "\x1b[0m";
+const FG_RESET: &str = "\x1b[39m";
 
 fn colored(color: &str, text: &str) -> String {
-    format!("{color}{text}{RESET}")
+    format!("{color}{text}{FG_RESET}")
+}
+
+fn visible_width(s: &str) -> usize {
+    let mut width = 0;
+    let mut in_escape = false;
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+        } else if in_escape {
+            if c.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+        } else {
+            width += 1;
+        }
+    }
+    width
+}
+
+pub fn frame_lines(lines: &[&str]) -> Vec<String> {
+    let max_width = lines.iter().map(|l| visible_width(l)).max().unwrap_or(0);
+    lines
+        .iter()
+        .map(|line| {
+            let pad = " ".repeat(max_width - visible_width(line));
+            format!("{BG}{GRAY}│{FG_RESET} {line}{pad} {GRAY}│{RESET}")
+        })
+        .collect()
 }
 
 fn abbreviate_tokens(n: u64) -> String {
@@ -51,10 +81,6 @@ fn context_tokens(input: &StatusInput) -> Option<u64> {
 
 pub fn format_line1(input: &StatusInput) -> String {
     let mut segments: Vec<String> = Vec::new();
-
-    if let Some(name) = input.model.as_ref().and_then(|m| m.display_name.as_deref()) {
-        segments.push(colored(BLUE, &format!("[{name}]")));
-    }
 
     if let Some(dir) = input
         .workspace
@@ -152,7 +178,7 @@ mod tests {
             if c == '\x1b' {
                 in_escape = true;
             } else if in_escape {
-                if c == 'm' {
+                if c.is_ascii_alphabetic() {
                     in_escape = false;
                 }
             } else {
@@ -256,10 +282,7 @@ mod tests {
         };
 
         let line = strip_ansi(&format_line1(&input));
-        assert_eq!(
-            line,
-            "[Opus]  /tmp/test-project  ctx: 145k  total: 230k  12m"
-        );
+        assert_eq!(line, "/tmp/test-project  ctx: 145k  total: 230k  12m");
     }
 
     #[test]
@@ -405,5 +428,34 @@ mod tests {
         };
         let line = strip_ansi(&format_line2(&git, Some(&pr)));
         assert_eq!(line, "⎇ main  +1  ↑0↓0  PR #7  ✓ approved  ● checks pass");
+    }
+
+    #[test]
+    fn test_frame_lines_aligned() {
+        let short = "short";
+        let long = "a longer line here";
+        let framed: Vec<String> = frame_lines(&[short, long])
+            .iter()
+            .map(|l| strip_ansi(l))
+            .collect();
+        assert_eq!(framed[0], "│ short              │");
+        assert_eq!(framed[1], "│ a longer line here │");
+        assert_eq!(framed[0].len(), framed[1].len());
+    }
+
+    #[test]
+    fn test_frame_lines_single() {
+        let framed: Vec<String> = frame_lines(&["hello"])
+            .iter()
+            .map(|l| strip_ansi(l))
+            .collect();
+        assert_eq!(framed[0], "│ hello │");
+    }
+
+    #[test]
+    fn test_visible_width() {
+        assert_eq!(visible_width("hello"), 5);
+        assert_eq!(visible_width(&colored(BLUE, "hello")), 5);
+        assert_eq!(visible_width(""), 0);
     }
 }

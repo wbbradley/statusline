@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0] - 2026-04-12
+
+### Breaking Changes
+
+- Removed model name display (`[Opus]`, `[Sonnet]`, etc.) from line 1
+- Output lines are now wrapped in a box-drawing frame (`│ ... │`) with equal-width padding and a dark background color
+
+### Added
+
+- Box-drawing frame around status lines with consistent width padding
+- Dark background color applied to the status bar for contrast against terminal backgrounds
+
+### Changed
+
+- Main output logic refactored to collect lines and batch-frame them for aligned borders
+
+### Removed
+
+- Model name segment from the first status line
+
 ## [0.1.0] - 2026-04-11
 
 ### Added
