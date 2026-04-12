@@ -7,6 +7,7 @@ pub struct GitInfo {
     pub ahead: usize,
     pub behind: usize,
     pub has_upstream: bool,
+    pub origin_url: Option<String>,
 }
 
 pub fn get_git_info(path: &str) -> Option<GitInfo> {
@@ -53,6 +54,11 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
     })()
     .unwrap_or((0, 0, false));
 
+    let origin_url = repo
+        .find_remote("origin")
+        .ok()
+        .and_then(|r| r.url().map(|s| s.to_string()));
+
     Some(GitInfo {
         branch,
         staged,
@@ -60,5 +66,6 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
         ahead,
         behind,
         has_upstream,
+        origin_url,
     })
 }

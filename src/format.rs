@@ -1,4 +1,4 @@
-use crate::{git::GitInfo, input::StatusInput};
+use crate::{git::GitInfo, input::StatusInput, pr::PrInfo};
 
 const BLUE: &str = "\x1b[38;2;131;165;152m";
 const AQUA: &str = "\x1b[38;2;142;192;124m";
@@ -6,6 +6,7 @@ const YELLOW: &str = "\x1b[38;2;250;189;47m";
 const GRAY: &str = "\x1b[38;2;168;153;132m";
 const GREEN: &str = "\x1b[38;2;184;187;38m";
 const ORANGE: &str = "\x1b[38;2;254;128;25m";
+const RED: &str = "\x1b[38;2;251;73;52m";
 const RESET: &str = "\x1b[0m";
 
 fn colored(color: &str, text: &str) -> String {
@@ -85,7 +86,7 @@ pub fn format_line1(input: &StatusInput) -> String {
     segments.join("  ")
 }
 
-pub fn format_line2(git: &GitInfo) -> String {
+pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>) -> String {
     let mut segments: Vec<String> = Vec::new();
 
     segments.push(colored(GREEN, &format!("⎇ {}", git.branch)));
@@ -105,7 +106,34 @@ pub fn format_line2(git: &GitInfo) -> String {
         segments.push(colored(ORANGE, &format!("↑{}↓{}", git.ahead, git.behind)));
     }
 
+    if let Some(pr) = pr {
+        segments.push(format_pr_segment(pr));
+    }
+
     segments.join("  ")
+}
+
+pub fn format_pr_segment(pr: &PrInfo) -> String {
+    use crate::pr::{ChecksStatus, ReviewDecision};
+
+    let mut parts: Vec<String> = Vec::new();
+    parts.push(colored(BLUE, &format!("PR #{}", pr.number)));
+
+    match &pr.review_decision {
+        ReviewDecision::Approved => parts.push(colored(GREEN, "✓ approved")),
+        ReviewDecision::ChangesRequested => parts.push(colored(RED, "✗ changes requested")),
+        ReviewDecision::ReviewRequired => parts.push(colored(YELLOW, "? review needed")),
+        ReviewDecision::None => {}
+    }
+
+    match &pr.checks {
+        ChecksStatus::Pass => parts.push(colored(GREEN, "● checks pass")),
+        ChecksStatus::Fail => parts.push(colored(RED, "✗ checks fail")),
+        ChecksStatus::Pending => parts.push(colored(YELLOW, "○ checks pending")),
+        ChecksStatus::None => {}
+    }
+
+    parts.join("  ")
 }
 
 #[cfg(test)]
@@ -114,6 +142,7 @@ mod tests {
     use crate::{
         git::GitInfo,
         input::{ContextWindow, Cost, CurrentUsage, Model, Workspace},
+        pr::{ChecksStatus, PrInfo, ReviewDecision},
     };
 
     fn strip_ansi(s: &str) -> String {
@@ -248,8 +277,9 @@ mod tests {
             ahead: 1,
             behind: 0,
             has_upstream: true,
+            origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  +3 ~2  ↑1↓0");
+        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main  +3 ~2  ↑1↓0");
     }
 
     #[test]
@@ -261,8 +291,9 @@ mod tests {
             ahead: 0,
             behind: 0,
             has_upstream: true,
+            origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  ↑0↓0");
+        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main  ↑0↓0");
     }
 
     #[test]
@@ -274,8 +305,9 @@ mod tests {
             ahead: 0,
             behind: 0,
             has_upstream: false,
+            origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ feature");
+        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ feature");
     }
 
     #[test]
@@ -287,8 +319,9 @@ mod tests {
             ahead: 0,
             behind: 0,
             has_upstream: true,
+            origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  +5  ↑0↓0");
+        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main  +5  ↑0↓0");
     }
 
     #[test]
@@ -300,7 +333,77 @@ mod tests {
             ahead: 0,
             behind: 0,
             has_upstream: true,
+            origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  ~3  ↑0↓0");
+        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main  ~3  ↑0↓0");
+    }
+
+    #[test]
+    fn test_format_pr_segment_approved_pass() {
+        let pr = PrInfo {
+            number: 42,
+            review_decision: ReviewDecision::Approved,
+            checks: ChecksStatus::Pass,
+        };
+        assert_eq!(
+            strip_ansi(&format_pr_segment(&pr)),
+            "PR #42  ✓ approved  ● checks pass"
+        );
+    }
+
+    #[test]
+    fn test_format_pr_segment_changes_requested_fail() {
+        let pr = PrInfo {
+            number: 42,
+            review_decision: ReviewDecision::ChangesRequested,
+            checks: ChecksStatus::Fail,
+        };
+        assert_eq!(
+            strip_ansi(&format_pr_segment(&pr)),
+            "PR #42  ✗ changes requested  ✗ checks fail"
+        );
+    }
+
+    #[test]
+    fn test_format_pr_segment_no_review_pending() {
+        let pr = PrInfo {
+            number: 42,
+            review_decision: ReviewDecision::None,
+            checks: ChecksStatus::Pending,
+        };
+        assert_eq!(
+            strip_ansi(&format_pr_segment(&pr)),
+            "PR #42  ○ checks pending"
+        );
+    }
+
+    #[test]
+    fn test_format_pr_segment_none_none() {
+        let pr = PrInfo {
+            number: 42,
+            review_decision: ReviewDecision::None,
+            checks: ChecksStatus::None,
+        };
+        assert_eq!(strip_ansi(&format_pr_segment(&pr)), "PR #42");
+    }
+
+    #[test]
+    fn test_format_line2_with_pr() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 1,
+            modified: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+            origin_url: None,
+        };
+        let pr = PrInfo {
+            number: 7,
+            review_decision: ReviewDecision::Approved,
+            checks: ChecksStatus::Pass,
+        };
+        let line = strip_ansi(&format_line2(&git, Some(&pr)));
+        assert_eq!(line, "⎇ main  +1  ↑0↓0  PR #7  ✓ approved  ● checks pass");
     }
 }

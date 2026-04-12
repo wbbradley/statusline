@@ -1,6 +1,7 @@
 mod format;
 mod git;
 mod input;
+mod pr;
 
 use std::io::Read;
 
@@ -21,7 +22,12 @@ fn main() {
         .and_then(|w| w.current_dir.as_deref())
         .or(input.cwd.as_deref());
     if let Some(path) = repo_path
-        && let Some(git_info) = git::get_git_info(path) {
-            println!("{}", format::format_line2(&git_info));
-        }
+        && let Some(git_info) = git::get_git_info(path)
+    {
+        let pr_info = git_info
+            .origin_url
+            .as_deref()
+            .and_then(|url| pr::get_pr_info(url, &git_info.branch));
+        println!("{}", format::format_line2(&git_info, pr_info.as_ref()));
+    }
 }
