@@ -1,9 +1,11 @@
-use crate::input::StatusInput;
+use crate::{git::GitInfo, input::StatusInput};
 
 const BLUE: &str = "\x1b[38;2;131;165;152m";
 const AQUA: &str = "\x1b[38;2;142;192;124m";
 const YELLOW: &str = "\x1b[38;2;250;189;47m";
 const GRAY: &str = "\x1b[38;2;168;153;132m";
+const GREEN: &str = "\x1b[38;2;184;187;38m";
+const ORANGE: &str = "\x1b[38;2;254;128;25m";
 const RESET: &str = "\x1b[0m";
 
 fn colored(color: &str, text: &str) -> String {
@@ -83,10 +85,36 @@ pub fn format_line1(input: &StatusInput) -> String {
     segments.join("  ")
 }
 
+pub fn format_line2(git: &GitInfo) -> String {
+    let mut segments: Vec<String> = Vec::new();
+
+    segments.push(colored(GREEN, &format!("⎇ {}", git.branch)));
+
+    let mut counts = Vec::new();
+    if git.staged > 0 {
+        counts.push(colored(GREEN, &format!("+{}", git.staged)));
+    }
+    if git.modified > 0 {
+        counts.push(colored(YELLOW, &format!("~{}", git.modified)));
+    }
+    if !counts.is_empty() {
+        segments.push(counts.join(" "));
+    }
+
+    if git.has_upstream {
+        segments.push(colored(ORANGE, &format!("↑{}↓{}", git.ahead, git.behind)));
+    }
+
+    segments.join("  ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::{ContextWindow, Cost, CurrentUsage, Model, Workspace};
+    use crate::{
+        git::GitInfo,
+        input::{ContextWindow, Cost, CurrentUsage, Model, Workspace},
+    };
 
     fn strip_ansi(s: &str) -> String {
         let mut out = String::new();
@@ -209,5 +237,70 @@ mod tests {
     fn test_format_line1_empty() {
         let input = StatusInput::default();
         assert_eq!(format_line1(&input), "");
+    }
+
+    #[test]
+    fn test_format_line2_full() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 3,
+            modified: 2,
+            ahead: 1,
+            behind: 0,
+            has_upstream: true,
+        };
+        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  +3 ~2  ↑1↓0");
+    }
+
+    #[test]
+    fn test_format_line2_clean() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 0,
+            modified: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+        };
+        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  ↑0↓0");
+    }
+
+    #[test]
+    fn test_format_line2_no_upstream() {
+        let git = GitInfo {
+            branch: "feature".to_string(),
+            staged: 0,
+            modified: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: false,
+        };
+        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ feature");
+    }
+
+    #[test]
+    fn test_format_line2_staged_only() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 5,
+            modified: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+        };
+        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  +5  ↑0↓0");
+    }
+
+    #[test]
+    fn test_format_line2_modified_only() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 0,
+            modified: 3,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+        };
+        assert_eq!(strip_ansi(&format_line2(&git)), "⎇ main  ~3  ↑0↓0");
     }
 }
