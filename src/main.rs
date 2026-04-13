@@ -24,16 +24,31 @@ fn main() {
         .as_ref()
         .and_then(|w| w.current_dir.as_deref())
         .or(input.cwd.as_deref());
-    let line2 = repo_path.and_then(git::get_git_info).map(|git_info| {
-        let pr_info = git_info
-            .origin_url
+    let git_info = repo_path.and_then(git::get_git_info);
+    let pr_info = git_info.as_ref().and_then(|g| {
+        g.origin_url
             .as_deref()
-            .and_then(|url| pr::get_pr_info(url, &git_info.branch));
-        format::format_line2(&git_info, pr_info.as_ref())
+            .and_then(|url| pr::get_pr_info(url, &g.branch))
     });
 
-    let min_width = line2.as_deref().map(format::visible_width);
-    let line1 = format::format_line1(&input, min_width);
+    // First pass: natural widths (no right-alignment).
+    let line1_natural = format::format_line1(&input, None);
+    let line2_natural = git_info
+        .as_ref()
+        .map(|g| format::format_line2(g, pr_info.as_ref(), None));
+    let max_width = [
+        (!line1_natural.is_empty()).then(|| format::visible_width(&line1_natural)),
+        line2_natural.as_deref().map(format::visible_width),
+    ]
+    .into_iter()
+    .flatten()
+    .max();
+
+    // Second pass: right-align both lines to the shared max width.
+    let line1 = format::format_line1(&input, max_width);
+    let line2 = git_info
+        .as_ref()
+        .map(|g| format::format_line2(g, pr_info.as_ref(), max_width));
 
     let mut lines: Vec<&str> = Vec::new();
     if !line1.is_empty() {

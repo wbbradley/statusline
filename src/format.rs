@@ -81,6 +81,26 @@ fn context_tokens(input: &StatusInput) -> Option<u64> {
     Some(sum)
 }
 
+fn join_aligned(left: &str, right: &str, min_width: Option<usize>) -> String {
+    if left.is_empty() && right.is_empty() {
+        return String::new();
+    }
+    if right.is_empty() {
+        return left.to_string();
+    }
+    if left.is_empty() {
+        return right.to_string();
+    }
+    let min_sep = 2;
+    if let Some(w) = min_width {
+        let pad_width = w.saturating_sub(visible_width(left) + visible_width(right));
+        let pad_width = pad_width.max(min_sep);
+        format!("{left}{}{right}", sep(pad_width))
+    } else {
+        format!("{left}{}{right}", sep(min_sep))
+    }
+}
+
 pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
     let left = input
         .workspace
@@ -93,30 +113,13 @@ pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
         .map(|ctx| colored(ORANGE, &abbreviate_tokens(ctx)))
         .unwrap_or_default();
 
-    if left.is_empty() && right.is_empty() {
-        return String::new();
-    }
-    if right.is_empty() {
-        return left;
-    }
-    if left.is_empty() {
-        return right;
-    }
-
-    let min_sep = 2;
-    if let Some(w) = min_width {
-        let pad_width = w.saturating_sub(visible_width(&left) + visible_width(&right));
-        let pad_width = pad_width.max(min_sep);
-        format!("{left}{}{right}", sep(pad_width))
-    } else {
-        format!("{left}{}{right}", sep(min_sep))
-    }
+    join_aligned(&left, &right, min_width)
 }
 
-pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>) -> String {
-    let mut segments: Vec<String> = Vec::new();
+pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>, min_width: Option<usize>) -> String {
+    let mut left_segments: Vec<String> = Vec::new();
 
-    segments.push(colored(GREEN, &format!("⎇ {}", git.branch)));
+    left_segments.push(colored(GREEN, &format!("⎇ {}", git.branch)));
 
     let mut counts = Vec::new();
     if git.staged > 0 {
@@ -126,18 +129,22 @@ pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>) -> String {
         counts.push(colored(YELLOW, &format!("~{}", git.modified)));
     }
     if !counts.is_empty() {
-        segments.push(counts.join(&sep(1)));
-    }
-
-    if git.has_upstream {
-        segments.push(colored(ORANGE, &format!("↑{}↓{}", git.ahead, git.behind)));
+        left_segments.push(counts.join(&sep(1)));
     }
 
     if let Some(pr) = pr {
-        segments.push(format_pr_segment(pr));
+        left_segments.push(format_pr_segment(pr));
     }
 
-    segments.join(&sep(2))
+    let left = left_segments.join(&sep(2));
+
+    let right = if git.has_upstream {
+        colored(ORANGE, &format!("↑{}↓{}", git.ahead, git.behind))
+    } else {
+        String::new()
+    };
+
+    join_aligned(&left, &right, min_width)
 }
 
 pub fn format_pr_segment(pr: &PrInfo) -> String {
@@ -332,7 +339,10 @@ mod tests {
             has_upstream: true,
             origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main──+3─~2──↑1↓0");
+        assert_eq!(
+            strip_ansi(&format_line2(&git, None, None)),
+            "⎇ main──+3─~2──↑1↓0"
+        );
     }
 
     #[test]
@@ -346,7 +356,7 @@ mod tests {
             has_upstream: true,
             origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main──↑0↓0");
+        assert_eq!(strip_ansi(&format_line2(&git, None, None)), "⎇ main──↑0↓0");
     }
 
     #[test]
@@ -360,7 +370,7 @@ mod tests {
             has_upstream: false,
             origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ feature");
+        assert_eq!(strip_ansi(&format_line2(&git, None, None)), "⎇ feature");
     }
 
     #[test]
@@ -374,7 +384,10 @@ mod tests {
             has_upstream: true,
             origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main──+5──↑0↓0");
+        assert_eq!(
+            strip_ansi(&format_line2(&git, None, None)),
+            "⎇ main──+5──↑0↓0"
+        );
     }
 
     #[test]
@@ -388,7 +401,10 @@ mod tests {
             has_upstream: true,
             origin_url: None,
         };
-        assert_eq!(strip_ansi(&format_line2(&git, None)), "⎇ main──~3──↑0↓0");
+        assert_eq!(
+            strip_ansi(&format_line2(&git, None, None)),
+            "⎇ main──~3──↑0↓0"
+        );
     }
 
     #[test]
@@ -456,8 +472,35 @@ mod tests {
             review_decision: ReviewDecision::Approved,
             checks: ChecksStatus::Pass,
         };
-        let line = strip_ansi(&format_line2(&git, Some(&pr)));
-        assert_eq!(line, "⎇ main──+1──↑0↓0──PR #7──✓ approved──● checks pass");
+        let line = strip_ansi(&format_line2(&git, Some(&pr), None));
+        assert_eq!(line, "⎇ main──+1──PR #7──✓ approved──● checks pass──↑0↓0");
+    }
+
+    #[test]
+    fn test_format_line2_right_aligned() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            staged: 0,
+            modified: 0,
+            ahead: 1,
+            behind: 0,
+            has_upstream: true,
+            origin_url: None,
+        };
+
+        // Natural: "⎇ main" (6) + "──" (2) + "↑1↓0" (4) = 12
+        let natural = strip_ansi(&format_line2(&git, None, None));
+        assert_eq!(natural, "⎇ main──↑1↓0");
+
+        // With min_width wider: upstream pushed right
+        let wide = strip_ansi(&format_line2(&git, None, Some(20)));
+        assert!(wide.starts_with("⎇ main"));
+        assert!(wide.ends_with("↑1↓0"));
+        assert_eq!(visible_width(&format_line2(&git, None, Some(20))), 20);
+
+        // With min_width narrower: falls back to min separator
+        let narrow = strip_ansi(&format_line2(&git, None, Some(5)));
+        assert_eq!(narrow, "⎇ main──↑1↓0");
     }
 
     #[test]
