@@ -20,7 +20,7 @@ fn sep(n: usize) -> String {
     format!("{BORDER}{bars}{FG_RESET}")
 }
 
-fn visible_width(s: &str) -> usize {
+pub fn visible_width(s: &str) -> usize {
     let mut width = 0;
     let mut in_escape = false;
     for c in s.chars() {
@@ -81,22 +81,36 @@ fn context_tokens(input: &StatusInput) -> Option<u64> {
     Some(sum)
 }
 
-pub fn format_line1(input: &StatusInput) -> String {
-    let mut segments: Vec<String> = Vec::new();
-
-    if let Some(dir) = input
+pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
+    let left = input
         .workspace
         .as_ref()
         .and_then(|w| w.current_dir.as_deref())
-    {
-        segments.push(colored(AQUA, &tilde_contract(dir)));
+        .map(|dir| colored(AQUA, &tilde_contract(dir)))
+        .unwrap_or_default();
+
+    let right = context_tokens(input)
+        .map(|ctx| colored(ORANGE, &abbreviate_tokens(ctx)))
+        .unwrap_or_default();
+
+    if left.is_empty() && right.is_empty() {
+        return String::new();
+    }
+    if right.is_empty() {
+        return left;
+    }
+    if left.is_empty() {
+        return right;
     }
 
-    if let Some(ctx) = context_tokens(input) {
-        segments.push(colored(ORANGE, &abbreviate_tokens(ctx)));
+    let min_sep = 2;
+    if let Some(w) = min_width {
+        let pad_width = w.saturating_sub(visible_width(&left) + visible_width(&right));
+        let pad_width = pad_width.max(min_sep);
+        format!("{left}{}{right}", sep(pad_width))
+    } else {
+        format!("{left}{}{right}", sep(min_sep))
     }
-
-    segments.join(&sep(2))
 }
 
 pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>) -> String {
@@ -256,14 +270,55 @@ mod tests {
             ..Default::default()
         };
 
-        let line = strip_ansi(&format_line1(&input));
+        let line = strip_ansi(&format_line1(&input, None));
         assert_eq!(line, "/tmp/test-project──145k");
     }
 
     #[test]
     fn test_format_line1_empty() {
         let input = StatusInput::default();
-        assert_eq!(format_line1(&input), "");
+        assert_eq!(format_line1(&input, None), "");
+    }
+
+    #[test]
+    fn test_format_line1_right_aligned() {
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some("/tmp/test-project".to_string()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: None,
+            }),
+            context_window: Some(ContextWindow {
+                current_usage: Some(CurrentUsage {
+                    input_tokens: Some(8500),
+                    output_tokens: None,
+                    cache_creation_input_tokens: Some(130_000),
+                    cache_read_input_tokens: Some(6_500),
+                }),
+                total_input_tokens: None,
+                total_output_tokens: None,
+                context_window_size: None,
+                used_percentage: None,
+                remaining_percentage: None,
+            }),
+            ..Default::default()
+        };
+
+        // Natural width: "/tmp/test-project" (17) + "──" (2) + "145k" (4) = 23
+        let natural = strip_ansi(&format_line1(&input, None));
+        assert_eq!(natural, "/tmp/test-project──145k");
+        assert_eq!(visible_width(&format_line1(&input, None)), 23);
+
+        // With min_width wider than natural: token count pushed right
+        let wide = strip_ansi(&format_line1(&input, Some(30)));
+        assert!(wide.starts_with("/tmp/test-project"));
+        assert!(wide.ends_with("145k"));
+        assert_eq!(visible_width(&format_line1(&input, Some(30))), 30);
+
+        // With min_width narrower than natural: falls back to min separator
+        let narrow = strip_ansi(&format_line1(&input, Some(10)));
+        assert_eq!(narrow, "/tmp/test-project──145k");
     }
 
     #[test]

@@ -19,8 +19,6 @@ fn main() {
         eprintln!("statusline: {e}");
         std::process::exit(1);
     });
-    let line1 = format::format_line1(&input);
-
     let repo_path = input
         .workspace
         .as_ref()
@@ -33,6 +31,9 @@ fn main() {
             .and_then(|url| pr::get_pr_info(url, &git_info.branch));
         format::format_line2(&git_info, pr_info.as_ref())
     });
+
+    let min_width = line2.as_deref().map(format::visible_width);
+    let line1 = format::format_line1(&input, min_width);
 
     let mut lines: Vec<&str> = Vec::new();
     if !line1.is_empty() {
