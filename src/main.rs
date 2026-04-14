@@ -3,9 +3,29 @@ mod git;
 mod input;
 mod pr;
 
-use std::io::Read;
+use std::{
+    fs::OpenOptions,
+    io::{Read, Write},
+};
 
 use input::StatusInput;
+
+fn log_input(buf: &str) {
+    let Some(home) = std::env::var_os("HOME") else {
+        return;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(buf) else {
+        return;
+    };
+    let Ok(line) = serde_json::to_string(&value) else {
+        return;
+    };
+    let path = std::path::Path::new(&home).join("statusline.log");
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    let _ = writeln!(file, "{line}");
+}
 
 fn main() {
     let mut buf = String::new();
@@ -15,6 +35,7 @@ fn main() {
             eprintln!("statusline: {e}");
             std::process::exit(1);
         });
+    log_input(&buf);
     let input: StatusInput = serde_json::from_str(&buf).unwrap_or_else(|e| {
         eprintln!("statusline: {e}");
         std::process::exit(1);

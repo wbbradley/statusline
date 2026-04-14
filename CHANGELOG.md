@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-04-14
+
+### Added
+
+- Append each parsed stdin payload as a compact JSON line to `~/statusline.log`
+
 ## [0.3.0] - 2026-04-12
 
 ### Breaking Changes

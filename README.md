@@ -24,6 +24,8 @@ echo '{"workspace":{"current_dir":"/tmp/project"}}' | statusline
 
 Missing or null fields are silently omitted — any valid JSON object works.
 
+Each invocation appends the parsed input as a compact JSON line to `~/statusline.log`.
+
 ## Line 1
 
 | Segment | Source | Color |
