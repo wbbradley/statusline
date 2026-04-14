@@ -12,11 +12,19 @@ pub struct GitInfo {
 
 pub fn get_git_info(path: &str) -> Option<GitInfo> {
     let repo = Repository::discover(path).ok()?;
-    let head = repo.head().ok()?;
+    let head = repo.head().ok();
 
-    let branch = match head.shorthand() {
-        Some(name) => name.to_string(),
-        None => head.target()?.to_string()[..8].to_string(),
+    let branch = match head.as_ref() {
+        Some(h) => match h.shorthand() {
+            Some(name) => name.to_string(),
+            None => h.target()?.to_string()[..8].to_string(),
+        },
+        None => repo
+            .find_reference("HEAD")
+            .ok()
+            .and_then(|r| r.symbolic_target().map(|s| s.to_string()))
+            .map(|s| s.strip_prefix("refs/heads/").unwrap_or(&s).to_string())
+            .unwrap_or_else(|| "HEAD".to_string()),
     };
 
     let statuses = repo.statuses(None).ok()?;
@@ -45,6 +53,7 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
     }
 
     let (ahead, behind, has_upstream) = (|| {
+        let head = head.as_ref()?;
         let local_branch = repo.find_branch(&branch, BranchType::Local).ok()?;
         let upstream = local_branch.upstream().ok()?;
         let local_oid = head.target()?;

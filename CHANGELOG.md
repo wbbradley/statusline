@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2] - 2026-04-14
+
+### Fixed
+
+- Render line 2 in repositories with no commits yet (unborn branch); branch name is read from the symbolic `HEAD` ref and ahead/behind is skipped
+- Always emit the second framed line even outside git repositories, so the status bar shape is consistent (empty line 2 renders as just the bottom border)
+
 ## [0.3.1] - 2026-04-14
 
 ### Added

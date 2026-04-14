@@ -56,28 +56,21 @@ fn main() {
     let line1_natural = format::format_line1(&input, None);
     let line2_natural = git_info
         .as_ref()
-        .map(|g| format::format_line2(g, pr_info.as_ref(), None));
-    let max_width = [
-        (!line1_natural.is_empty()).then(|| format::visible_width(&line1_natural)),
-        line2_natural.as_deref().map(format::visible_width),
-    ]
-    .into_iter()
-    .flatten()
-    .max();
+        .map(|g| format::format_line2(g, pr_info.as_ref(), None))
+        .unwrap_or_default();
+    let max_width = [&line1_natural, &line2_natural]
+        .into_iter()
+        .map(|s| format::visible_width(s))
+        .max();
 
     // Second pass: right-align both lines to the shared max width.
     let line1 = format::format_line1(&input, max_width);
     let line2 = git_info
         .as_ref()
-        .map(|g| format::format_line2(g, pr_info.as_ref(), max_width));
+        .map(|g| format::format_line2(g, pr_info.as_ref(), max_width))
+        .unwrap_or_default();
 
-    let mut lines: Vec<&str> = Vec::new();
-    if !line1.is_empty() {
-        lines.push(&line1);
-    }
-    if let Some(ref l2) = line2 {
-        lines.push(l2);
-    }
+    let lines: Vec<&str> = vec![&line1, &line2];
     for framed in format::frame_lines(&lines) {
         println!("{framed}");
     }
