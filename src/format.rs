@@ -1,6 +1,7 @@
 use crate::{git::GitInfo, input::StatusInput, pr::PrInfo};
 
 const BLUE: &str = "\x1b[38;2;131;165;152m";
+const GREY_BLUE: &str = "\x1b[38;2;124;142;158m";
 const AQUA: &str = "\x1b[38;2;142;192;124m";
 const YELLOW: &str = "\x1b[38;2;250;189;47m";
 const GREEN: &str = "\x1b[38;2;184;187;38m";
@@ -101,13 +102,29 @@ fn join_aligned(left: &str, right: &str, min_width: Option<usize>) -> String {
     }
 }
 
+fn linux_hostname() -> Option<String> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    hostname::get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .filter(|s| !s.is_empty())
+}
+
 pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
-    let left = input
+    let dir_part = input
         .workspace
         .as_ref()
         .and_then(|w| w.current_dir.as_deref())
-        .map(|dir| colored(AQUA, &tilde_contract(dir)))
-        .unwrap_or_default();
+        .map(|dir| colored(AQUA, &tilde_contract(dir)));
+
+    let left = match (dir_part, linux_hostname()) {
+        (Some(dir), Some(host)) => format!("{dir} {}", colored(GREY_BLUE, &host)),
+        (Some(dir), None) => dir,
+        (None, Some(host)) => colored(GREY_BLUE, &host),
+        (None, None) => String::new(),
+    };
 
     let right = context_tokens(input)
         .map(|ctx| colored(ORANGE, &abbreviate_tokens(ctx)))
