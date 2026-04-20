@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.3] - 2026-04-19
+
+### Added
+
+- On Linux, show the hostname after the working directory on line 1 in a darkish grey-blue
+
 ## [0.3.2] - 2026-04-14
 
 ### Fixed
