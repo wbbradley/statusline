@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.4] - 2026-04-21
+
+### Changed
+
+- Show the hostname on all platforms (previously Linux-only) and append the OS name (`macOS`, `Linux`, etc.) after it on line 1
+
 ## [0.3.3] - 2026-04-19
 
 ### Added

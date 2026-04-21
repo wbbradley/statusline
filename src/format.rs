@@ -102,28 +102,47 @@ fn join_aligned(left: &str, right: &str, min_width: Option<usize>) -> String {
     }
 }
 
-fn linux_hostname() -> Option<String> {
-    if !cfg!(target_os = "linux") {
-        return None;
-    }
+fn hostname() -> Option<String> {
     hostname::get()
         .ok()
         .and_then(|h| h.into_string().ok())
         .filter(|s| !s.is_empty())
 }
 
+fn os_name() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macOS"
+    } else if cfg!(target_os = "linux") {
+        "Linux"
+    } else {
+        std::env::consts::OS
+    }
+}
+
 pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
+    format_line1_with_env(input, min_width, hostname().as_deref(), os_name())
+}
+
+fn format_line1_with_env(
+    input: &StatusInput,
+    min_width: Option<usize>,
+    host: Option<&str>,
+    os: &str,
+) -> String {
     let dir_part = input
         .workspace
         .as_ref()
         .and_then(|w| w.current_dir.as_deref())
         .map(|dir| colored(AQUA, &tilde_contract(dir)));
 
-    let left = match (dir_part, linux_hostname()) {
-        (Some(dir), Some(host)) => format!("{dir} {}", colored(GREY_BLUE, &host)),
-        (Some(dir), None) => dir,
-        (None, Some(host)) => colored(GREY_BLUE, &host),
-        (None, None) => String::new(),
+    let host_os = match host {
+        Some(h) => colored(GREY_BLUE, &format!("{h} {os}")),
+        None => colored(GREY_BLUE, os),
+    };
+
+    let left = match dir_part {
+        Some(dir) => format!("{dir} {host_os}"),
+        None => host_os,
     };
 
     let right = context_tokens(input)
@@ -294,14 +313,28 @@ mod tests {
             ..Default::default()
         };
 
-        let line = strip_ansi(&format_line1(&input, None));
-        assert_eq!(line, "/tmp/test-project──145k");
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(line, "/tmp/test-project myhost macOS──145k");
     }
 
     #[test]
-    fn test_format_line1_empty() {
+    fn test_format_line1_no_workspace() {
         let input = StatusInput::default();
-        assert_eq!(format_line1(&input, None), "");
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "Linux",
+        ));
+        assert_eq!(line, "myhost Linux");
+
+        let line_no_host = strip_ansi(&format_line1_with_env(&input, None, None, "macOS"));
+        assert_eq!(line_no_host, "macOS");
     }
 
     #[test]
@@ -329,20 +362,51 @@ mod tests {
             ..Default::default()
         };
 
-        // Natural width: "/tmp/test-project" (17) + "──" (2) + "145k" (4) = 23
-        let natural = strip_ansi(&format_line1(&input, None));
-        assert_eq!(natural, "/tmp/test-project──145k");
-        assert_eq!(visible_width(&format_line1(&input, None)), 23);
+        // Natural width: "/tmp/test-project myhost macOS" (30) + "──" (2) + "145k" (4) = 36
+        let natural = strip_ansi(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(natural, "/tmp/test-project myhost macOS──145k");
+        assert_eq!(
+            visible_width(&format_line1_with_env(
+                &input,
+                None,
+                Some("myhost"),
+                "macOS"
+            )),
+            36
+        );
 
         // With min_width wider than natural: token count pushed right
-        let wide = strip_ansi(&format_line1(&input, Some(30)));
+        let wide = strip_ansi(&format_line1_with_env(
+            &input,
+            Some(45),
+            Some("myhost"),
+            "macOS",
+        ));
         assert!(wide.starts_with("/tmp/test-project"));
         assert!(wide.ends_with("145k"));
-        assert_eq!(visible_width(&format_line1(&input, Some(30))), 30);
+        assert_eq!(
+            visible_width(&format_line1_with_env(
+                &input,
+                Some(45),
+                Some("myhost"),
+                "macOS"
+            )),
+            45
+        );
 
         // With min_width narrower than natural: falls back to min separator
-        let narrow = strip_ansi(&format_line1(&input, Some(10)));
-        assert_eq!(narrow, "/tmp/test-project──145k");
+        let narrow = strip_ansi(&format_line1_with_env(
+            &input,
+            Some(10),
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(narrow, "/tmp/test-project myhost macOS──145k");
     }
 
     #[test]

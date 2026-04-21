@@ -31,7 +31,7 @@ Each invocation appends the parsed input as a compact JSON line to `~/statusline
 | Segment | Source | Color |
 |---------|--------|-------|
 | Working directory | `workspace.current_dir` (tilde-contracted) | aqua |
-| Hostname (Linux only) | `gethostname()` | grey-blue |
+| Hostname + OS | `gethostname()` + `target_os` (e.g. `myhost macOS`) | grey-blue |
 | Context tokens | `context_window.current_usage` (input + cache) | orange |
 
 ## Line 2
