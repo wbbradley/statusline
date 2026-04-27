@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.6] - 2026-04-27
+
+### Changed
+
+- Render the OS name in lowercase on line 1 (e.g. `macos myhost` instead of `macOS myhost`)
+
 ## [0.3.5] - 2026-04-27
 
 ### Changed

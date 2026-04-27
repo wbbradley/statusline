@@ -136,7 +136,7 @@ fn format_line1_with_env(
         .map(|dir| colored(AQUA, &tilde_contract(dir)));
 
     let os_host = match host {
-        Some(h) => colored(GREY_BLUE, &format!("{os} {h}")),
+        Some(h) => colored(GREY_BLUE, &format!("{} {h}", os.to_lowercase())),
         None => colored(GREY_BLUE, os),
     };
 
