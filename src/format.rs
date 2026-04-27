@@ -135,14 +135,14 @@ fn format_line1_with_env(
         .and_then(|w| w.current_dir.as_deref())
         .map(|dir| colored(AQUA, &tilde_contract(dir)));
 
-    let host_os = match host {
-        Some(h) => colored(GREY_BLUE, &format!("{h} {os}")),
+    let os_host = match host {
+        Some(h) => colored(GREY_BLUE, &format!("{os} {h}")),
         None => colored(GREY_BLUE, os),
     };
 
     let left = match dir_part {
-        Some(dir) => format!("{dir} {host_os}"),
-        None => host_os,
+        Some(dir) => format!("{dir} {os_host}"),
+        None => os_host,
     };
 
     let right = context_tokens(input)
@@ -319,7 +319,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, "/tmp/test-project myhost macOS──145k");
+        assert_eq!(line, "/tmp/test-project macOS myhost──145k");
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod tests {
             Some("myhost"),
             "Linux",
         ));
-        assert_eq!(line, "myhost Linux");
+        assert_eq!(line, "Linux myhost");
 
         let line_no_host = strip_ansi(&format_line1_with_env(&input, None, None, "macOS"));
         assert_eq!(line_no_host, "macOS");
@@ -362,14 +362,14 @@ mod tests {
             ..Default::default()
         };
 
-        // Natural width: "/tmp/test-project myhost macOS" (30) + "──" (2) + "145k" (4) = 36
+        // Natural width: "/tmp/test-project macOS myhost" (30) + "──" (2) + "145k" (4) = 36
         let natural = strip_ansi(&format_line1_with_env(
             &input,
             None,
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(natural, "/tmp/test-project myhost macOS──145k");
+        assert_eq!(natural, "/tmp/test-project macOS myhost──145k");
         assert_eq!(
             visible_width(&format_line1_with_env(
                 &input,
@@ -406,7 +406,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(narrow, "/tmp/test-project myhost macOS──145k");
+        assert_eq!(narrow, "/tmp/test-project macOS myhost──145k");
     }
 
     #[test]

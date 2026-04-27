@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5] - 2026-04-27
+
+### Changed
+
+- On line 1, render the OS name before the hostname (e.g. `macOS myhost` instead of `myhost macOS`)
+
 ## [0.3.4] - 2026-04-21
 
 ### Changed
