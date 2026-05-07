@@ -155,7 +155,15 @@ fn format_line1_with_env(
 pub fn format_line2(git: &GitInfo, pr: Option<&PrInfo>, min_width: Option<usize>) -> String {
     let mut left_segments: Vec<String> = Vec::new();
 
-    left_segments.push(colored(GREEN, &format!("⎇ {}", git.branch)));
+    let branch_segment = match &git.sha {
+        Some(sha) => format!(
+            "{} {}",
+            colored(GREEN, &format!("⎇ {}", git.branch)),
+            colored(GREY_BLUE, sha)
+        ),
+        None => colored(GREEN, &format!("⎇ {}", git.branch)),
+    };
+    left_segments.push(branch_segment);
 
     let mut counts = Vec::new();
     if git.staged > 0 {
@@ -319,7 +327,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, "/tmp/test-project macOS myhost──145k");
+        assert_eq!(line, "/tmp/test-project macos myhost──145k");
     }
 
     #[test]
@@ -331,7 +339,7 @@ mod tests {
             Some("myhost"),
             "Linux",
         ));
-        assert_eq!(line, "Linux myhost");
+        assert_eq!(line, "linux myhost");
 
         let line_no_host = strip_ansi(&format_line1_with_env(&input, None, None, "macOS"));
         assert_eq!(line_no_host, "macOS");
@@ -362,14 +370,14 @@ mod tests {
             ..Default::default()
         };
 
-        // Natural width: "/tmp/test-project macOS myhost" (30) + "──" (2) + "145k" (4) = 36
+        // Natural width: "/tmp/test-project macos myhost" (30) + "──" (2) + "145k" (4) = 36
         let natural = strip_ansi(&format_line1_with_env(
             &input,
             None,
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(natural, "/tmp/test-project macOS myhost──145k");
+        assert_eq!(natural, "/tmp/test-project macos myhost──145k");
         assert_eq!(
             visible_width(&format_line1_with_env(
                 &input,
@@ -406,13 +414,14 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(narrow, "/tmp/test-project macOS myhost──145k");
+        assert_eq!(narrow, "/tmp/test-project macos myhost──145k");
     }
 
     #[test]
     fn test_format_line2_full() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 3,
             modified: 2,
             ahead: 1,
@@ -430,6 +439,7 @@ mod tests {
     fn test_format_line2_clean() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 0,
             modified: 0,
             ahead: 0,
@@ -444,6 +454,7 @@ mod tests {
     fn test_format_line2_no_upstream() {
         let git = GitInfo {
             branch: "feature".to_string(),
+            sha: None,
             staged: 0,
             modified: 0,
             ahead: 0,
@@ -458,6 +469,7 @@ mod tests {
     fn test_format_line2_staged_only() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 5,
             modified: 0,
             ahead: 0,
@@ -475,6 +487,7 @@ mod tests {
     fn test_format_line2_modified_only() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 0,
             modified: 3,
             ahead: 0,
@@ -485,6 +498,24 @@ mod tests {
         assert_eq!(
             strip_ansi(&format_line2(&git, None, None)),
             "⎇ main──~3──↑0↓0"
+        );
+    }
+
+    #[test]
+    fn test_format_line2_with_sha() {
+        let git = GitInfo {
+            branch: "main".to_string(),
+            sha: Some("9769e18a".to_string()),
+            staged: 0,
+            modified: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+            origin_url: None,
+        };
+        assert_eq!(
+            strip_ansi(&format_line2(&git, None, None)),
+            "⎇ main 9769e18a──↑0↓0"
         );
     }
 
@@ -541,6 +572,7 @@ mod tests {
     fn test_format_line2_with_pr() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 1,
             modified: 0,
             ahead: 0,
@@ -561,6 +593,7 @@ mod tests {
     fn test_format_line2_right_aligned() {
         let git = GitInfo {
             branch: "main".to_string(),
+            sha: None,
             staged: 0,
             modified: 0,
             ahead: 1,

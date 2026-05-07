@@ -2,6 +2,7 @@ use git2::{BranchType, Repository, Status};
 
 pub struct GitInfo {
     pub branch: String,
+    pub sha: Option<String>,
     pub staged: usize,
     pub modified: usize,
     pub ahead: usize,
@@ -26,6 +27,11 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
             .map(|s| s.strip_prefix("refs/heads/").unwrap_or(&s).to_string())
             .unwrap_or_else(|| "HEAD".to_string()),
     };
+
+    let sha = head
+        .as_ref()
+        .and_then(|h| h.target())
+        .map(|oid| oid.to_string()[..8].to_string());
 
     let statuses = repo.statuses(None).ok()?;
     let mut staged = 0usize;
@@ -70,6 +76,7 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
 
     Some(GitInfo {
         branch,
+        sha,
         staged,
         modified,
         ahead,

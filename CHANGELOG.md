@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.7] - 2026-05-07
+
+### Added
+
+- Show the first 8 hex digits of the git commit SHA after the branch name on line 2
+
+### Fixed
+
+- Update line 1 unit-test fixtures to match the lowercased OS rendering introduced in 0.3.6
+
 ## [0.3.6] - 2026-04-27
 
 ### Changed

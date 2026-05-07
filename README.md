@@ -39,6 +39,7 @@ Each invocation appends the parsed input as a compact JSON line to `~/statusline
 | Segment | Source | Color |
 |---------|--------|-------|
 | Branch | git HEAD via libgit2 | green |
+| Commit SHA (first 8 hex digits) | git HEAD via libgit2 | grey-blue |
 | Staged count (+N) | git index status | green |
 | Modified count (~N) | git worktree status | yellow |
 | Ahead/behind (↑N↓N) | upstream tracking | orange |
