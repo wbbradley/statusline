@@ -41,7 +41,7 @@ pub enum ChecksStatus {
     None,
 }
 
-const CACHE_TTL_SECS: i64 = 60;
+const CACHE_TTL_SECS: i64 = 300;
 
 fn now_secs() -> i64 {
     SystemTime::now()
@@ -56,9 +56,11 @@ fn open_cache_db() -> Option<Connection> {
     let db_path = cache_dir.join("cache.db");
     let conn = Connection::open(db_path).ok()?;
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS pr_cache(
+        "DROP TABLE IF EXISTS pr_cache;
+         CREATE TABLE IF NOT EXISTS pr_cache_v2(
             repo TEXT,
             branch TEXT,
+            sha TEXT,
             data TEXT,
             fetched_at INTEGER,
             PRIMARY KEY(repo, branch)
@@ -141,42 +143,42 @@ fn convert_gh_data(data: &GhPrData) -> PrInfo {
     }
 }
 
-pub fn get_pr_info(origin_url: &str, branch: &str) -> Option<PrInfo> {
+pub fn get_pr_info(origin_url: &str, branch: &str, sha: Option<&str>) -> Option<PrInfo> {
     let slug = repo_slug(origin_url)?;
     let conn = open_cache_db()?;
+    let sha = sha.unwrap_or("");
 
-    let cached: Option<(String, i64)> = conn
+    let cached: Option<(String, String, i64)> = conn
         .query_row(
-            "SELECT data, fetched_at FROM pr_cache WHERE repo = ?1 AND branch = ?2",
+            "SELECT data, sha, fetched_at FROM pr_cache_v2 WHERE repo = ?1 AND branch = ?2",
             [&slug, branch],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .ok();
 
-    let json_str = if let Some((data, fetched_at)) = cached {
-        if now_secs() - fetched_at < CACHE_TTL_SECS {
+    // Empty `data` is the "no PR / fetch failed" sentinel — caching it
+    // prevents re-running `gh pr view` every invocation on a branch with no PR.
+    // SHA mismatch busts the cache early so a fresh push picks up new PR state
+    // without waiting for the TTL.
+    let json_str = match cached {
+        Some((data, cached_sha, fetched_at))
+            if cached_sha == sha && now_secs() - fetched_at < CACHE_TTL_SECS =>
+        {
             data
-        } else {
-            match fetch_from_gh(&slug, branch) {
-                Some(fresh) => {
-                    let _ = conn.execute(
-                        "INSERT OR REPLACE INTO pr_cache(repo, branch, data, fetched_at) VALUES (?1, ?2, ?3, ?4)",
-                        (&slug, branch, &fresh, now_secs()),
-                    );
-                    fresh
-                }
-                Option::None => data,
-            }
         }
-    } else {
-        let fresh = fetch_from_gh(&slug, branch)?;
-        let _ = conn.execute(
-            "INSERT OR REPLACE INTO pr_cache(repo, branch, data, fetched_at) VALUES (?1, ?2, ?3, ?4)",
-            (&slug, branch, &fresh, now_secs()),
-        );
-        fresh
+        _ => {
+            let fresh = fetch_from_gh(&slug, branch).unwrap_or_default();
+            let _ = conn.execute(
+                "INSERT OR REPLACE INTO pr_cache_v2(repo, branch, sha, data, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                (&slug, branch, sha, &fresh, now_secs()),
+            );
+            fresh
+        }
     };
 
+    if json_str.is_empty() {
+        return Option::None;
+    }
     let gh_data: GhPrData = serde_json::from_str(&json_str).ok()?;
     Some(convert_gh_data(&gh_data))
 }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.8] - 2026-05-09
+
+### Fixed
+
+- Branches with no PR no longer re-run `gh pr view` on every invocation — the negative result is
+  now cached, so the statusline stops hammering `gh` when the current branch has no PR
+- When a TTL-boundary re-fetch failed, the cached `fetched_at` was not updated, causing every
+  subsequent invocation to retry; the cache row is now always rewritten on a fetch attempt
+
+### Changed
+
+- PR cache TTL extended from 60 seconds to 5 minutes
+- PR cache now busts early when the local HEAD SHA changes, so a fresh push picks up new PR state
+  without waiting for the TTL
+- PR cache schema migrated from `pr_cache` to `pr_cache_v2` (adds a `sha` column); the old table
+  is dropped automatically on first run
+
 ## [0.3.7] - 2026-05-07
 
 ### Added

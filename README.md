@@ -47,8 +47,10 @@ Each invocation appends the parsed input as a compact JSON line to `~/statusline
 | Review decision | `gh pr view` (cached) | green/red/yellow |
 | CI checks | `gh pr view` (cached) | green/red/yellow |
 
-PR data is cached in `~/.cache/statusline/cache.db` (SQLite, 60s TTL). If `gh` is not installed or
-there is no PR for the current branch, the PR segment is silently omitted.
+PR data is cached in `~/.cache/statusline/cache.db` (SQLite, 5-minute TTL, busted early when the
+HEAD SHA changes). Branches with no PR are also cached, so `gh pr view` is not re-run on every
+invocation. If `gh` is not installed or there is no PR for the current branch, the PR segment is
+silently omitted.
 
 ## Dependencies
 

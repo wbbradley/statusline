@@ -49,7 +49,7 @@ fn main() {
     let pr_info = git_info.as_ref().and_then(|g| {
         g.origin_url
             .as_deref()
-            .and_then(|url| pr::get_pr_info(url, &g.branch))
+            .and_then(|url| pr::get_pr_info(url, &g.branch, g.sha.as_deref()))
     });
 
     // First pass: natural widths (no right-alignment).
