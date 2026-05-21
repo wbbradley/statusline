@@ -145,8 +145,8 @@ fn format_line1_with_env(
 
     let plan_segment = workspace_dir.map(|dir| {
         let body = match plan_md_line_count(Path::new(dir)) {
-            Some(n) => format!("🗒️ {n}"),
-            None => "🗒️ -".to_string(),
+            Some(n) => format!("🗒 {n}"),
+            None => "🗒 -".to_string(),
         };
         colored(GREY_BLUE, &body)
     });
@@ -346,7 +346,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, format!("{dir} macos myhost──🗒️ 3──145k"));
+        assert_eq!(line, format!("{dir} macos myhost──🗒 3──145k"));
     }
 
     #[test]
@@ -368,7 +368,7 @@ mod tests {
     fn test_format_line1_right_aligned() {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path().to_string_lossy().into_owned();
-        // No PLAN.md → segment is "🗒️ -".
+        // No PLAN.md → segment is "🗒 -".
         let input = StatusInput {
             workspace: Some(Workspace {
                 current_dir: Some(dir.clone()),
@@ -392,14 +392,14 @@ mod tests {
             ..Default::default()
         };
 
-        // Natural: "<dir> macos myhost" + "──🗒️ -" + "──145k"
+        // Natural: "<dir> macos myhost" + "──🗒 -" + "──145k"
         let natural = strip_ansi(&format_line1_with_env(
             &input,
             None,
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(natural, format!("{dir} macos myhost──🗒️ -──145k"));
+        assert_eq!(natural, format!("{dir} macos myhost──🗒 -──145k"));
 
         let natural_width = visible_width(&format_line1_with_env(
             &input,
@@ -434,7 +434,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(narrow, format!("{dir} macos myhost──🗒️ -──145k"));
+        assert_eq!(narrow, format!("{dir} macos myhost──🗒 -──145k"));
     }
 
     #[test]
@@ -457,7 +457,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, format!("{dir} macos myhost──🗒️ 3"));
+        assert_eq!(line, format!("{dir} macos myhost──🗒 3"));
     }
 
     #[test]
@@ -492,7 +492,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        let placeholder = "🗒️ -";
+        let placeholder = "🗒 -";
         assert!(
             line.contains(placeholder),
             "line missing placeholder: {line}"
