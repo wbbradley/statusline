@@ -1,6 +1,7 @@
 mod format;
 mod git;
 mod input;
+mod plan;
 mod pr;
 
 use std::{

@@ -1,4 +1,6 @@
-use crate::{git::GitInfo, input::StatusInput, pr::PrInfo};
+use std::path::Path;
+
+use crate::{git::GitInfo, input::StatusInput, plan::plan_md_line_count, pr::PrInfo};
 
 const BLUE: &str = "\x1b[38;2;131;165;152m";
 const GREY_BLUE: &str = "\x1b[38;2;124;142;158m";
@@ -129,21 +131,33 @@ fn format_line1_with_env(
     host: Option<&str>,
     os: &str,
 ) -> String {
-    let dir_part = input
+    let workspace_dir = input
         .workspace
         .as_ref()
-        .and_then(|w| w.current_dir.as_deref())
-        .map(|dir| colored(AQUA, &tilde_contract(dir)));
+        .and_then(|w| w.current_dir.as_deref());
+
+    let dir_part = workspace_dir.map(|dir| colored(AQUA, &tilde_contract(dir)));
 
     let os_host = match host {
         Some(h) => colored(GREY_BLUE, &format!("{} {h}", os.to_lowercase())),
         None => colored(GREY_BLUE, os),
     };
 
-    let left = match dir_part {
+    let plan_segment = workspace_dir.map(|dir| {
+        let body = match plan_md_line_count(Path::new(dir)) {
+            Some(n) => format!("🗒️ {n}"),
+            None => "🗒️ -".to_string(),
+        };
+        colored(GREY_BLUE, &body)
+    });
+
+    let mut left = match dir_part {
         Some(dir) => format!("{dir} {os_host}"),
         None => os_host,
     };
+    if let Some(seg) = plan_segment {
+        left = format!("{left}{}{seg}", sep(2));
+    }
 
     let right = context_tokens(input)
         .map(|ctx| colored(ORANGE, &abbreviate_tokens(ctx)))
@@ -216,6 +230,8 @@ pub fn format_pr_segment(pr: &PrInfo) -> String {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::TempDir;
+
     use super::*;
     use crate::{
         git::GitInfo,
@@ -287,13 +303,16 @@ mod tests {
 
     #[test]
     fn test_format_line1_full() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().to_string_lossy().into_owned();
+        std::fs::write(tmp.path().join("PLAN.md"), "a\nb\nc\n").unwrap();
         let input = StatusInput {
             model: Some(Model {
                 id: None,
                 display_name: Some("Opus".to_string()),
             }),
             workspace: Some(Workspace {
-                current_dir: Some("/tmp/test-project".to_string()),
+                current_dir: Some(dir.clone()),
                 project_dir: None,
                 added_dirs: None,
                 git_worktree: None,
@@ -327,7 +346,7 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, "/tmp/test-project macos myhost──145k");
+        assert_eq!(line, format!("{dir} macos myhost──🗒️ 3──145k"));
     }
 
     #[test]
@@ -347,9 +366,12 @@ mod tests {
 
     #[test]
     fn test_format_line1_right_aligned() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().to_string_lossy().into_owned();
+        // No PLAN.md → segment is "🗒️ -".
         let input = StatusInput {
             workspace: Some(Workspace {
-                current_dir: Some("/tmp/test-project".to_string()),
+                current_dir: Some(dir.clone()),
                 project_dir: None,
                 added_dirs: None,
                 git_worktree: None,
@@ -370,41 +392,39 @@ mod tests {
             ..Default::default()
         };
 
-        // Natural width: "/tmp/test-project macos myhost" (30) + "──" (2) + "145k" (4) = 36
+        // Natural: "<dir> macos myhost" + "──🗒️ -" + "──145k"
         let natural = strip_ansi(&format_line1_with_env(
             &input,
             None,
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(natural, "/tmp/test-project macos myhost──145k");
-        assert_eq!(
-            visible_width(&format_line1_with_env(
-                &input,
-                None,
-                Some("myhost"),
-                "macOS"
-            )),
-            36
-        );
+        assert_eq!(natural, format!("{dir} macos myhost──🗒️ -──145k"));
+
+        let natural_width = visible_width(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
 
         // With min_width wider than natural: token count pushed right
         let wide = strip_ansi(&format_line1_with_env(
             &input,
-            Some(45),
+            Some(natural_width + 9),
             Some("myhost"),
             "macOS",
         ));
-        assert!(wide.starts_with("/tmp/test-project"));
+        assert!(wide.starts_with(&dir));
         assert!(wide.ends_with("145k"));
         assert_eq!(
             visible_width(&format_line1_with_env(
                 &input,
-                Some(45),
+                Some(natural_width + 9),
                 Some("myhost"),
                 "macOS"
             )),
-            45
+            natural_width + 9
         );
 
         // With min_width narrower than natural: falls back to min separator
@@ -414,7 +434,74 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(narrow, "/tmp/test-project macos myhost──145k");
+        assert_eq!(narrow, format!("{dir} macos myhost──🗒️ -──145k"));
+    }
+
+    #[test]
+    fn test_format_line1_with_plan_md() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().to_string_lossy().into_owned();
+        std::fs::write(tmp.path().join("PLAN.md"), "one\ntwo\nthree\n").unwrap();
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some(dir.clone()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: None,
+            }),
+            ..Default::default()
+        };
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(line, format!("{dir} macos myhost──🗒️ 3"));
+    }
+
+    #[test]
+    fn test_format_line1_missing_plan_md() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().to_string_lossy().into_owned();
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some(dir.clone()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: None,
+            }),
+            context_window: Some(ContextWindow {
+                current_usage: Some(CurrentUsage {
+                    input_tokens: Some(8500),
+                    output_tokens: None,
+                    cache_creation_input_tokens: Some(130_000),
+                    cache_read_input_tokens: Some(6_500),
+                }),
+                total_input_tokens: None,
+                total_output_tokens: None,
+                context_window_size: None,
+                used_percentage: None,
+                remaining_percentage: None,
+            }),
+            ..Default::default()
+        };
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        let placeholder = "🗒️ -";
+        assert!(
+            line.contains(placeholder),
+            "line missing placeholder: {line}"
+        );
+        let plan_idx = line.find(placeholder).unwrap();
+        let host_idx = line.find("myhost").unwrap();
+        let tokens_idx = line.find("145k").unwrap();
+        assert!(host_idx < plan_idx);
+        assert!(plan_idx < tokens_idx);
     }
 
     #[test]
