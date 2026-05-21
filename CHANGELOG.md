@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.9] - 2026-05-21
+
+### Added
+
+- New line-1 segment shows the line count of `PLAN.md` in the workspace directory as `🗒 N`
+  (grey-blue), placed between the OS+hostname segment and the right-aligned context tokens.
+  Renders `🗒 -` when `PLAN.md` is missing or unreadable. Suppressed only when no workspace
+  directory is resolved. No caching — the file is read on every render.
+
+### Fixed
+
+- Notepad glyph no longer renders with an extra cell of space on the first paint in some
+  terminals; the U+FE0F variation selector has been dropped from the emitted glyph, which
+  also aligns `visible_width` with the terminal's 1-cell rendering
+
 ## [0.3.8] - 2026-05-09
 
 ### Fixed
