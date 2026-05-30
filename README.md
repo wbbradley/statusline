@@ -32,7 +32,7 @@ Each invocation appends the parsed input as a compact JSON line to `~/statusline
 |---------|--------|-------|
 | Working directory | `workspace.current_dir` (tilde-contracted) | aqua |
 | OS + Hostname | `target_os` + `gethostname()` (lowercased, e.g. `macos myhost`) | grey-blue |
-| PLAN.md line count | `<workspace>/PLAN.md` (`🗒 N`, `🗒 -` if missing) | grey-blue |
+| PLAN.md queue length | nearest `PLAN.md` walking up from the workspace (counts lines after `## Next Up`, or the whole file if that marker is absent; stops at a `.git` boundary) | grey-blue |
 | Context tokens | `context_window.current_usage` (input + cache) | orange |
 
 ## Line 2

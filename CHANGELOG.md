@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.10] - 2026-05-30
+
+### Changed
+
+- PLAN.md line-count segment is now queue-aware: when a `## Next Up` marker is present, only lines
+  after that marker are counted (whole-file fallback when the marker is absent)
+- PLAN.md is now discovered by walking up parent directories from the workspace, short-circuiting
+  to no segment at a `.git` boundary, so the segment works from any subdirectory of a project
+
 ## [0.3.9] - 2026-05-21
 
 ### Added
