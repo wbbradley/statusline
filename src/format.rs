@@ -121,12 +121,19 @@ fn os_name() -> &'static str {
     }
 }
 
-pub fn format_line1(input: &StatusInput, min_width: Option<usize>) -> String {
-    format_line1_with_env(input, min_width, hostname().as_deref(), os_name())
+pub fn format_line1(input: &StatusInput, is_worktree: bool, min_width: Option<usize>) -> String {
+    format_line1_with_env(
+        input,
+        is_worktree,
+        min_width,
+        hostname().as_deref(),
+        os_name(),
+    )
 }
 
 fn format_line1_with_env(
     input: &StatusInput,
+    is_worktree: bool,
     min_width: Option<usize>,
     host: Option<&str>,
     os: &str,
@@ -136,7 +143,44 @@ fn format_line1_with_env(
         .as_ref()
         .and_then(|w| w.current_dir.as_deref());
 
-    let dir_part = workspace_dir.map(|dir| colored(AQUA, &tilde_contract(dir)));
+    let wt = input.worktree.as_ref();
+    let wt_name_input = input
+        .workspace
+        .as_ref()
+        .and_then(|w| w.git_worktree.as_deref())
+        .or_else(|| wt.and_then(|w| w.name.as_deref()));
+    let original_cwd = wt.and_then(|w| w.original_cwd.as_deref());
+    let original_branch = wt.and_then(|w| w.original_branch.as_deref());
+
+    // Trigger: git2 detection OR any input worktree metadata.
+    let in_worktree = is_worktree || wt_name_input.is_some() || wt.is_some();
+
+    // Directory: replace with original_cwd when known, else show current_dir as-is.
+    let display_dir = if in_worktree {
+        original_cwd.or(workspace_dir)
+    } else {
+        workspace_dir
+    };
+    let dir_part = display_dir.map(|dir| colored(AQUA, &tilde_contract(dir)));
+
+    // Worktree name: git_worktree / worktree.name, else basename of the worktree dir.
+    let wt_name = if in_worktree {
+        wt_name_input.map(str::to_string).or_else(|| {
+            workspace_dir
+                .and_then(|d| Path::new(d).file_name())
+                .map(|f| f.to_string_lossy().into_owned())
+        })
+    } else {
+        None
+    };
+
+    let worktree_segment = wt_name.map(|name| {
+        let mut body = format!("🌿 {name}");
+        if let Some(branch) = original_branch {
+            body.push_str(&format!(" ←{branch}"));
+        }
+        colored(GREY_BLUE, &body)
+    });
 
     let os_host = match host {
         Some(h) => colored(GREY_BLUE, &format!("{} {h}", os.to_lowercase())),
@@ -151,7 +195,14 @@ fn format_line1_with_env(
         colored(GREY_BLUE, &body)
     });
 
-    let mut left = match dir_part {
+    let dir_with_wt = match (dir_part, worktree_segment) {
+        (Some(d), Some(w)) => Some(format!("{d} {w}")),
+        (Some(d), None) => Some(d),
+        (None, Some(w)) => Some(w),
+        (None, None) => None,
+    };
+
+    let mut left = match dir_with_wt {
         Some(dir) => format!("{dir} {os_host}"),
         None => os_host,
     };
@@ -235,7 +286,7 @@ mod tests {
     use super::*;
     use crate::{
         git::GitInfo,
-        input::{ContextWindow, Cost, CurrentUsage, Model, Workspace},
+        input::{ContextWindow, Cost, CurrentUsage, Model, Workspace, Worktree},
         pr::{ChecksStatus, PrInfo, ReviewDecision},
     };
 
@@ -342,6 +393,7 @@ mod tests {
 
         let line = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "macOS",
@@ -354,13 +406,14 @@ mod tests {
         let input = StatusInput::default();
         let line = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "Linux",
         ));
         assert_eq!(line, "linux myhost");
 
-        let line_no_host = strip_ansi(&format_line1_with_env(&input, None, None, "macOS"));
+        let line_no_host = strip_ansi(&format_line1_with_env(&input, false, None, None, "macOS"));
         assert_eq!(line_no_host, "macOS");
     }
 
@@ -395,6 +448,7 @@ mod tests {
         // Natural: "<dir> macos myhost" + "──🗒 -" + "──145k"
         let natural = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "macOS",
@@ -403,6 +457,7 @@ mod tests {
 
         let natural_width = visible_width(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "macOS",
@@ -411,6 +466,7 @@ mod tests {
         // With min_width wider than natural: token count pushed right
         let wide = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             Some(natural_width + 9),
             Some("myhost"),
             "macOS",
@@ -420,6 +476,7 @@ mod tests {
         assert_eq!(
             visible_width(&format_line1_with_env(
                 &input,
+                false,
                 Some(natural_width + 9),
                 Some("myhost"),
                 "macOS"
@@ -430,6 +487,7 @@ mod tests {
         // With min_width narrower than natural: falls back to min separator
         let narrow = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             Some(10),
             Some("myhost"),
             "macOS",
@@ -453,6 +511,7 @@ mod tests {
         };
         let line = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "macOS",
@@ -488,6 +547,7 @@ mod tests {
         };
         let line = strip_ansi(&format_line1_with_env(
             &input,
+            false,
             None,
             Some("myhost"),
             "macOS",
@@ -505,6 +565,102 @@ mod tests {
     }
 
     #[test]
+    fn test_format_line1_worktree_with_original() {
+        let wt_tmp = TempDir::new().unwrap();
+        let wt_dir = wt_tmp.path().to_string_lossy().into_owned();
+        let orig_tmp = TempDir::new().unwrap();
+        let orig_dir = orig_tmp.path().to_string_lossy().into_owned();
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some(wt_dir.clone()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: Some("devin-29610".to_string()),
+            }),
+            worktree: Some(Worktree {
+                name: Some("devin-29610".to_string()),
+                path: Some(wt_dir.clone()),
+                branch: Some("devin-29610".to_string()),
+                original_cwd: Some(orig_dir.clone()),
+                original_branch: Some("main".to_string()),
+            }),
+            ..Default::default()
+        };
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            true,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(
+            line,
+            format!("{orig_dir} 🌿 devin-29610 ←main macos myhost──🗒 -")
+        );
+    }
+
+    #[test]
+    fn test_format_line1_worktree_no_parent_branch() {
+        let wt_tmp = TempDir::new().unwrap();
+        let wt_dir = wt_tmp.path().to_string_lossy().into_owned();
+        let orig_tmp = TempDir::new().unwrap();
+        let orig_dir = orig_tmp.path().to_string_lossy().into_owned();
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some(wt_dir.clone()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: Some("devin-29610".to_string()),
+            }),
+            worktree: Some(Worktree {
+                name: Some("devin-29610".to_string()),
+                path: Some(wt_dir.clone()),
+                branch: Some("devin-29610".to_string()),
+                original_cwd: Some(orig_dir.clone()),
+                original_branch: None,
+            }),
+            ..Default::default()
+        };
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            true,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(line, format!("{orig_dir} 🌿 devin-29610 macos myhost──🗒 -"));
+    }
+
+    #[test]
+    fn test_format_line1_worktree_detected_only() {
+        let wt_tmp = TempDir::new().unwrap();
+        let wt_dir = wt_tmp.path().to_string_lossy().into_owned();
+        let basename = wt_tmp
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let input = StatusInput {
+            workspace: Some(Workspace {
+                current_dir: Some(wt_dir.clone()),
+                project_dir: None,
+                added_dirs: None,
+                git_worktree: None,
+            }),
+            ..Default::default()
+        };
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            true,
+            None,
+            Some("myhost"),
+            "macOS",
+        ));
+        assert_eq!(line, format!("{wt_dir} 🌿 {basename} macos myhost──🗒 -"));
+    }
+
+    #[test]
     fn test_format_line2_full() {
         let git = GitInfo {
             branch: "main".to_string(),
@@ -515,6 +671,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(
             strip_ansi(&format_line2(&git, None, None)),
@@ -533,6 +690,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(strip_ansi(&format_line2(&git, None, None)), "⎇ main──↑0↓0");
     }
@@ -548,6 +706,7 @@ mod tests {
             behind: 0,
             has_upstream: false,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(strip_ansi(&format_line2(&git, None, None)), "⎇ feature");
     }
@@ -563,6 +722,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(
             strip_ansi(&format_line2(&git, None, None)),
@@ -581,6 +741,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(
             strip_ansi(&format_line2(&git, None, None)),
@@ -599,6 +760,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         assert_eq!(
             strip_ansi(&format_line2(&git, None, None)),
@@ -666,6 +828,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
         let pr = PrInfo {
             number: 7,
@@ -687,6 +850,7 @@ mod tests {
             behind: 0,
             has_upstream: true,
             origin_url: None,
+            is_worktree: false,
         };
 
         // Natural: "⎇ main" (6) + "──" (2) + "↑1↓0" (4) = 12

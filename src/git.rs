@@ -9,6 +9,7 @@ pub struct GitInfo {
     pub behind: usize,
     pub has_upstream: bool,
     pub origin_url: Option<String>,
+    pub is_worktree: bool,
 }
 
 pub fn get_git_info(path: &str) -> Option<GitInfo> {
@@ -74,6 +75,8 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
         .ok()
         .and_then(|r| r.url().map(|s| s.to_string()));
 
+    let is_worktree = repo.is_worktree();
+
     Some(GitInfo {
         branch,
         sha,
@@ -83,5 +86,40 @@ pub fn get_git_info(path: &str) -> Option<GitInfo> {
         behind,
         has_upstream,
         origin_url,
+        is_worktree,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::{Repository, Signature};
+    use tempfile::TempDir;
+
+    fn init_with_commit(path: &std::path::Path) -> Repository {
+        let repo = Repository::init(path).unwrap();
+        let sig = Signature::now("Test", "test@example.com").unwrap();
+        let tree_id = repo.index().unwrap().write_tree().unwrap();
+        {
+            let tree = repo.find_tree(tree_id).unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+                .unwrap();
+        }
+        repo
+    }
+
+    #[test]
+    fn detects_linked_worktree() {
+        let dir = TempDir::new().unwrap();
+        let repo = init_with_commit(dir.path());
+        // Main working tree: not a linked worktree.
+        let main_info = get_git_info(dir.path().to_str().unwrap()).unwrap();
+        assert!(!main_info.is_worktree);
+        // Linked worktree: detected.
+        let wt_parent = TempDir::new().unwrap();
+        let wt_path = wt_parent.path().join("wt");
+        repo.worktree("wt", &wt_path, None).unwrap();
+        let wt_info = get_git_info(wt_path.to_str().unwrap()).unwrap();
+        assert!(wt_info.is_worktree);
+    }
 }

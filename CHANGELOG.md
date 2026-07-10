@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.11] - 2026-07-10
+
+### Added
+
+- New line-1 worktree segment (`🌿 name`, grey-blue) shown when the session runs inside a linked
+  git worktree, placed next to the working directory. Detection triggers off libgit2's
+  `Repository::is_worktree()` (so any linked worktree is caught, including a hand-run
+  `git worktree add`) and is enriched by `workspace.git_worktree` / the top-level `worktree`
+  metadata when present. The name comes from `git_worktree` / `worktree.name`, falling back to the
+  worktree directory basename. When `worktree.original_branch` is known, the segment is annotated
+  with the fork point as `←branch`. When `worktree.original_cwd` is known, the displayed working
+  directory is contracted back to that original repo root so the `🌿` segment carries the worktree
+  identity; otherwise the actual `current_dir` is shown as-is.
+
 ## [0.3.10] - 2026-05-30
 
 ### Changed

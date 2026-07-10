@@ -53,8 +53,10 @@ fn main() {
             .and_then(|url| pr::get_pr_info(url, &g.branch, g.sha.as_deref()))
     });
 
+    let is_worktree = git_info.as_ref().map(|g| g.is_worktree).unwrap_or(false);
+
     // First pass: natural widths (no right-alignment).
-    let line1_natural = format::format_line1(&input, None);
+    let line1_natural = format::format_line1(&input, is_worktree, None);
     let line2_natural = git_info
         .as_ref()
         .map(|g| format::format_line2(g, pr_info.as_ref(), None))
@@ -65,7 +67,7 @@ fn main() {
         .max();
 
     // Second pass: right-align both lines to the shared max width.
-    let line1 = format::format_line1(&input, max_width);
+    let line1 = format::format_line1(&input, is_worktree, max_width);
     let line2 = git_info
         .as_ref()
         .map(|g| format::format_line2(g, pr_info.as_ref(), max_width))
