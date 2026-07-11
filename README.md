@@ -30,6 +30,7 @@ Each invocation appends the parsed input as a compact JSON line to `~/statusline
 
 | Segment | Source | Color |
 |---------|--------|-------|
+| Model (`[id]`) | `model.id` (bracketed plain text); omitted when absent | default |
 | Working directory | `workspace.current_dir` (tilde-contracted); in a worktree, contracted back to `worktree.original_cwd` when known | aqua |
 | Worktree (`🌿 name ←forked-from`) | shown when the session runs in a linked git worktree (detected via libgit2, or `workspace.git_worktree` / `worktree` metadata); name from `git_worktree` / `worktree.name`, else the worktree dir basename; `←branch` from `worktree.original_branch` when present | grey-blue |
 | OS + Hostname | `target_os` + `gethostname()` (lowercased, e.g. `macos myhost`) | grey-blue |

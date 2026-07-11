@@ -210,6 +210,15 @@ fn format_line1_with_env(
         left = format!("{left}{}{seg}", sep(2));
     }
 
+    let model_segment = input
+        .model
+        .as_ref()
+        .and_then(|m| m.id.as_deref())
+        .map(|id| format!("[{id}]"));
+    if let Some(seg) = model_segment {
+        left = format!("{seg}{}{left}", sep(2));
+    }
+
     let right = context_tokens(input)
         .map(|ctx| colored(ORANGE, &abbreviate_tokens(ctx)))
         .unwrap_or_default();
@@ -359,7 +368,7 @@ mod tests {
         std::fs::write(tmp.path().join("PLAN.md"), "a\nb\nc\n").unwrap();
         let input = StatusInput {
             model: Some(Model {
-                id: None,
+                id: Some("claude-opus-4-6".to_string()),
                 display_name: Some("Opus".to_string()),
             }),
             workspace: Some(Workspace {
@@ -398,7 +407,26 @@ mod tests {
             Some("myhost"),
             "macOS",
         ));
-        assert_eq!(line, format!("{dir} macos myhost──🗒 3──145k"));
+        assert_eq!(
+            line,
+            format!("[claude-opus-4-6]──{dir} macos myhost──🗒 3──145k")
+        );
+    }
+
+    #[test]
+    fn test_format_line1_no_model() {
+        let input = StatusInput::default();
+        let line = strip_ansi(&format_line1_with_env(
+            &input,
+            false,
+            None,
+            Some("myhost"),
+            "Linux",
+        ));
+        assert!(
+            !line.starts_with('['),
+            "line 1 should not lead with a bracketed model id when model is absent: {line:?}"
+        );
     }
 
     #[test]

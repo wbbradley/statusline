@@ -106,3 +106,55 @@
 >    (`~/src/langchainplus`) as drafted, or keep the full worktree path and only append the
 >    `🌿` marker? The mockup you approved implied replacement; flagging because it changes the
 >    existing directory-segment behavior.
+
+## Model-name statusline segment
+
+### Summary of what was implemented
+
+- Added a `model_segment` to `format_line1_with_env` in `src/format.rs`, built from
+  `input.model.as_ref().and_then(|m| m.id.as_deref())` and rendered as bracketed
+  plain text (`[claude-opus-4-6]`) with no `colored(...)` wrapper. It is prepended
+  as the leftmost element of the `left` string, joined with the standard `sep(2)`
+  divider. When `model` or `model.id` is `None` the segment is omitted and line 1
+  renders exactly as before.
+- Updated `test_format_line1_full` to set `id: Some("claude-opus-4-6")` and expect
+  `[claude-opus-4-6]──<dir> macos myhost──🗒 3──145k`, and added
+  `test_format_line1_no_model` asserting the stripped line does not lead with `[`.
+- Documented the new segment as the first row of the "Line 1" table in `README.md`.
+
+### Original PLAN.md entry (verbatim)
+
+> ### Model-name statusline segment
+>
+> Render the current model as the leftmost segment on line 1, in brackets, using the
+> model id. The input plumbing already exists — `StatusInput.model: Option<Model>`
+> with `Model { id, display_name }` in `src/input.rs` — so this is a rendering-only
+> change; no deserialization work is needed.
+>
+> Files to touch:
+> - `src/format.rs`: in `format_line1_with_env` (the function that builds line 1),
+>   add a `model_segment` built from `input.model.as_ref().and_then(|m| m.id.as_deref())`.
+>   Render it as bracketed plain text, e.g. `[claude-opus-4-6]`, with minimal/no
+>   color (do not wrap in `colored(...)` unless a neutral shade is clearly needed to
+>   match the line). Place it as the **first (leftmost)** segment of the `left`
+>   string, before the directory part, joined to the rest with the existing `sep()`
+>   separator convention. Omit the segment entirely when `model` or `model.id` is
+>   `None` — line 1 must still render correctly, matching the existing
+>   `Option`-guarded segments.
+> - `README.md`: add a row to the "Line 1" segment table (lines ~29-38) describing
+>   the new segment, its source (`model.id`), and that it renders bracketed.
+>
+> Behavior / styling:
+> - Show `model.id` only (e.g. `claude-opus-4-6`); do **not** fall back to
+>   `display_name`. If `id` is absent, omit the segment.
+> - Bracketed plain text `[<id>]`, leftmost on line 1.
+> - Follow the `sep()` separator convention of neighboring segments so spacing/
+>   dividers stay consistent.
+>
+> Acceptance criteria:
+> - `cargo test` passes; update/extend the `format_line1` tests in `src/format.rs`
+>   to assert the bracketed model id appears as the leftmost text of the
+>   stripped-ANSI line 1.
+> - Piping a real payload (e.g. the `test_full_json` fixture in `input.rs`) through
+>   the binary shows the bracketed model id at the start of line 1.
+> - `cargo fmt` is clean.
